@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "claim_scope": "food_and_dietary_labels",
+  "claim_categories": {
+    "dietary_allergen": [
+      "gluten free",
+      "lactose free",
+      "vegan",
+      "nut free"
+    ],
+    "nutrition_level": [
+      "low sugar",
+      "no added sugar",
+      "high protein"
+    ],
+    "regulatory_certification": [
+      "organic",
+      "non-gmo"
+    ],
+    "marketing_promotional": [
+      "natural",
+      "fresh"
+    ],
+    "visual_only": [
+      "color_badge",
+      "icon_based"
+    ]
+  }
+}
