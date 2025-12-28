@@ -24,6 +24,9 @@
     "visual_only": [
       "color_badge",
       "icon_based"
+    ],
+    "visual_style":[
+      "text"
     ]
   }
 }
