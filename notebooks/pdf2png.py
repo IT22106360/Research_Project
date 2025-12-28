@@ -4,7 +4,7 @@ from tqdm import tqdm  # Progress bar
 
 # Paths
 poppler_path = r"C:\Program Files\poppler-23.11.0\Library\bin"
-pdf_folder = r"D:\Y4 Research\nih_pdfs_542_642"
+pdf_folder = r"D:\Y4 Research\nih_pdfs_643_1643"
 saving_folder = r"D:\Y4 Research\PNG 2"
 
 # Make sure output folder exists
