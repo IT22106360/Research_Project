@@ -1,0 +1,24 @@
+LABELS = [
+    "O",
+
+    # INGREDIENT
+    "B-INGREDIENT", "I-INGREDIENT", "E-INGREDIENT", "S-INGREDIENT",
+
+    # NUTRIENT NAME
+    "B-NUTRIENT_NAME", "I-NUTRIENT_NAME", "E-NUTRIENT_NAME", "S-NUTRIENT_NAME",
+
+    # NUTRIENT VALUE
+    "B-NUTRIENT_VALUE", "I-NUTRIENT_VALUE", "E-NUTRIENT_VALUE", "S-NUTRIENT_VALUE",
+
+    # SERVING SIZE
+    "B-SERVING_SIZE", "I-SERVING_SIZE", "E-SERVING_SIZE", "S-SERVING_SIZE",
+
+    # CALORIES
+    "B-CALORIES", "I-CALORIES", "E-CALORIES", "S-CALORIES",
+
+    # CLAIMS
+    "B-CLAIMS", "I-CLAIMS", "E-CLAIMS", "S-CLAIMS"
+]
+
+label2id = {label: idx for idx, label in enumerate(LABELS)}
+id2label = {idx: label for label, idx in label2id.items()}
