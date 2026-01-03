@@ -1,145 +1,111 @@
-# preprocessing/steps.py
-
 import cv2
 import numpy as np
 
-def ensure_png_compatible(img: np.ndarray) -> np.ndarray:
-    """
-    Ensures the image is PNG-compatible:
-    - uint8 dtype
-    - 1-channel (grayscale) or 3-channel (RGB)
-    """
+def illumination_correction(img):
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
 
-    if img is None:
-        raise ValueError("Invalid image input")
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l = clahe.apply(l)
 
-    # Ensure uint8
-    if img.dtype != np.uint8:
-        img = np.clip(img, 0, 255).astype(np.uint8)
+    lab = cv2.merge((l, a, b))
+    return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
-    # Convert RGBA → RGB
-    if len(img.shape) == 3 and img.shape[2] == 4:
-        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-
-    return img
-
-# preprocessing/steps.py
-
-import cv2
-import numpy as np
-
-def resize_image(img: np.ndarray, target_width: int = 1800) -> np.ndarray:
-    """
-    Resize a single image to a target width while maintaining aspect ratio.
-    DPI change is not needed in memory, only pixel size matters.
-
-    Parameters:
-    - img: np.ndarray, input image (BGR)
-    - target_width: int, desired width in pixels
-
-    Returns:
-    - img: np.ndarray, resized image
-    """
-    if img is None:
-        raise ValueError("Input image is None")
-
-    h, w = img.shape[:2]
-
-    # Resize only if width < target_width
-    if w < target_width:
-        scale = target_width / w
-        new_w = target_width
-        new_h = int(h * scale)
-        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
-
-    return img
-
-
-def apply_clahe_only(img: np.ndarray, clip_limit: float = 2.0, tile_grid_size: tuple = (8, 8)) -> np.ndarray:
-    """
-    Convert an image to 8-bit grayscale and apply CLAHE (illumination normalization only).
-    Does not apply brightness standardization.
-    
-    Parameters:
-    - img: np.ndarray, input image (BGR or RGB)
-    - clip_limit: float, CLAHE clip limit
-    - tile_grid_size: tuple, CLAHE tile grid size
-    
-    Returns:
-    - gray_clahe: np.ndarray, grayscale image with CLAHE applied
-    """
-    if img is None:
-        raise ValueError("Input image is None")
-
-    # 1. Convert to grayscale
-    if len(img.shape) == 3:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = img.copy()  # already grayscale
-
-    # 2. Apply CLAHE
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
-    gray_clahe = clahe.apply(gray)
-
-    return gray_clahe
-
-# preprocessing/steps.py
-
-
-
-def denoise_image(img: np.ndarray, h: float = 8, template_window_size: int = 7, search_window_size: int = 21) -> np.ndarray:
-    """
-    Apply Non-Local Means Denoising to a grayscale image.
-
-    Parameters:
-    - img: np.ndarray, input grayscale image
-    - h: float, filter strength. Higher h = more denoising
-    - template_window_size: int, size of template patch
-    - search_window_size: int, size of search window
-
-    Returns:
-    - denoised: np.ndarray, denoised image
-    """
-    if img is None:
-        raise ValueError("Input image is None")
-
-    # Ensure image is single-channel
-    if len(img.shape) != 2:
-        raise ValueError("Denoising expects a grayscale image")
-
-    denoised = cv2.fastNlMeansDenoising(
-        img,
-        None,
-        h=h,
-        templateWindowSize=template_window_size,
-        searchWindowSize=search_window_size
+def denoise(img):
+    return cv2.fastNlMeansDenoisingColored(
+        img, None,
+        h=6, hColor=6,
+        templateWindowSize=7,
+        searchWindowSize=21
     )
 
-    return denoised
+def blur_score(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    return cv2.Laplacian(gray, cv2.CV_64F).var()
 
+def resize_if_needed(img, min_height=900):
+    h, w = img.shape[:2]
+    if h < min_height:
+        scale = min_height / h
+        img = cv2.resize(
+            img,
+            None,
+            fx=scale,
+            fy=scale,
+            interpolation=cv2.INTER_CUBIC  # text-safe
+        )
+    return img
 
-def clahe_contrast_enhancement(img: np.ndarray, clip_limit: float = 2.5, tile_grid_size: tuple = (12, 12)) -> np.ndarray:
+def adaptive_sharpen(img):
+    score = blur_score(img)
+
+    if score < 80:
+        alpha = 1.8
+    elif score < 150:
+        alpha = 1.4
+    else:
+        return img  # already sharp enough
+
+    blurred = cv2.GaussianBlur(img, (0, 0), sigmaX=1.0)
+    return cv2.addWeighted(img, alpha, blurred, -(alpha - 1), 0)
+
+def preprocess_for_ocr(img):
+    img = illumination_correction(img)
+    img = denoise(img)
+    img = resize_if_needed(img)
+    img = adaptive_sharpen(img)
+
+    return img
+
+def run_tesseract_ocr(preprocessed_img, image_id="web_image"):
     """
-    Apply CLAHE for contrast enhancement on a grayscale image.
-    
-    Parameters:
-    - img: np.ndarray, input grayscale image
-    - clip_limit: float, CLAHE clip limit
-    - tile_grid_size: tuple, CLAHE tile grid size
-    
-    Returns:
-    - enhanced: np.ndarray, contrast-enhanced image
+    Input:
+        preprocessed_img: OpenCV BGR image
+    Output:
+        OCR JSON with text + word boxes
     """
-    if img is None:
-        raise ValueError("Input image is None")
 
-    # Ensure grayscale
-    if len(img.shape) != 2:
-        raise ValueError("CLAHE contrast enhancement expects a grayscale image")
+    # Convert BGR → RGB (Tesseract expects RGB)
+    rgb = cv2.cvtColor(preprocessed_img, cv2.COLOR_BGR2RGB)
 
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
-    enhanced = clahe.apply(img)
+    # OCR config (OCR-friendly)
+    custom_config = r"--oem 3 --psm 6"
 
-    return enhanced
+    data = pytesseract.image_to_data(
+        rgb,
+        config=custom_config,
+        output_type=pytesseract.Output.DICT
+    )
 
+    words = []
+    full_text = []
 
+    H, W = rgb.shape[:2]
+
+    for i in range(len(data["text"])):
+        text = data["text"][i].strip()
+        conf = int(data["conf"][i])
+
+        if text == "" or conf < 40:
+            continue
+
+        x = data["left"][i]
+        y = data["top"][i]
+        w = data["width"][i]
+        h = data["height"][i]
+
+        words.append({
+            "text": text,
+            "confidence": conf,
+            "bbox": [x, y, x + w, y + h]  # pixel coords
+        })
+
+        full_text.append(text)
+
+    return {
+        "image_id": image_id,
+        "ocr_text": " ".join(full_text),
+        "words": words,
+        "ocr_width": W,
+        "ocr_height": H
+    }
